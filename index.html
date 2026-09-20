@@ -138,6 +138,9 @@
                 <p class="text-xl sm:text-2xl opacity-90 max-w-4xl mx-auto mb-4">
                     Transforming ideas into polished, high-performance digital experiences using modern web technologies.
                 </p>
+                <p class="text-base sm:text-xl opacity-80 max-w-4xl mx-auto mb-8 italic">
+                    Im still Progressing and Editing Website for future use
+                </p>
                 <a href="#works" class="mt-4 inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-semibold rounded-xl text-primary bg-white hover:bg-gray-100 dark:bg-gray-200 dark:text-gray-900 transition-all duration-300 shadow-2xl transform hover:scale-105">
                     View My Work &rarr;
                 </a>
@@ -514,60 +517,142 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
+        // Typo-tolerant keyword matching for the chatbot.
+        // This lets small misspellings such as "educaton", "skilss", or "experiance"
+        // still match the intended prompt without requiring an external AI service.
+        function levenshteinDistance(a, b) {
+            const matrix = Array.from({ length: b.length + 1 }, () => Array(a.length + 1).fill(0));
+
+            for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j - 1] + cost
+                    );
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function fuzzyWordMatch(word, keyword) {
+            if (word.includes(keyword) || keyword.includes(word)) return true;
+
+            // Short keywords are matched more strictly to avoid false positives.
+            const allowedDistance = keyword.length <= 4 ? 1 : keyword.length <= 8 ? 2 : 3;
+            return levenshteinDistance(word, keyword) <= allowedDistance;
+        }
+
+        function matchesAny(text, keywords) {
+            const normalized = text
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const words = normalized.split(' ').filter(Boolean);
+
+            return keywords.some(keyword => {
+                const key = keyword.toLowerCase();
+
+                // Keep exact substring matching for normal prompts and phrases.
+                if (normalized.includes(key)) return true;
+
+                // Fuzzy-match individual words for small typing mistakes.
+                if (!key.includes(' ')) {
+                    return words.some(word => fuzzyWordMatch(word, key));
+                }
+
+                // For multi-word keywords, compare each phrase word against
+                // consecutive words in the user's prompt.
+                const keyWords = key.split(' ');
+                for (let i = 0; i <= words.length - keyWords.length; i++) {
+                    const matches = keyWords.every((keyWord, offset) =>
+                        fuzzyWordMatch(words[i + offset], keyWord)
+                    );
+                    if (matches) return true;
+                }
+                return false;
+            });
+        }
+
+        // Only answer prompts that are clearly about Powlie / Jeam Paul S. Oropesa.
+        // The same fuzzy matcher is used, so small typos in the name are accepted.
+        function isAboutPowlie(text) {
+            return matchesAny(text, [
+                'powlie',
+                'jeam',
+                'paul',
+                'oropesa',
+                'jeam paul',
+                'jeam paul oropesa',
+                'jeam paul s oropesa'
+            ]);
+        }
+
         // Dynamically reads the HTML content of the page to answer user questions about CV/Resume details
         function generateBotResponse(text) {
+            // Scope guard: ignore general/off-topic prompts unless they mention Powlie/Jeam/Paul/Oropesa.
+            if (!isAboutPowlie(text)) {
+                return "I only answer questions about Powlie (Jeam Paul S. Oropesa). Please include Powlie, Jeam, Paul, or Oropesa in your question.";
+            }
+
             // 1. Certifications & Achievements
-            if (text.includes('certificat') || text.includes('achievement') || text.includes('recognition') || text.includes('award')) {
+            if (matchesAny(text, ['certificat']) || matchesAny(text, ['achievement']) || matchesAny(text, ['recognition']) || matchesAny(text, ['award'])) {
                 return "Jeam's certifications and achievements include: 1) Active ICT Department Internship at DELSAN, 2) Completed Work Immersion Certificate from MACEMCO, and 3) Web Development Foundation coursework completion at Philippine Christian University covering HTML, CSS, JS, Java (OOP), PHP, and MySQL.";
             }
 
             // 2. Work Experience / DELSAN / MACEMCO
-            if (text.includes('delsan') || text.includes('macemco') || text.includes('experience') || text.includes('intern') || text.includes('internship') || text.includes('immersion') || text.includes('work')) {
+            if (matchesAny(text, ['delsan']) || matchesAny(text, ['macemco']) || matchesAny(text, ['experience']) || matchesAny(text, ['intern']) || matchesAny(text, ['internship']) || matchesAny(text, ['immersion']) || matchesAny(text, ['work'])) {
                 return "Jeam's work experience includes: 1) Active ICT Intern in the ICT Dept. at DELSAN (technical support & system maintenance), and 2) Completed Work Immersion Student at MACEMCO (IT field support & computer systems operations).";
             }
 
             // 3. Organizations / Affiliations / JPCS
-            if (text.includes('organization') || text.includes('organisations') || text.includes('club') || text.includes('jpcs') || text.includes('society') || text.includes('affiliat')) {
+            if (matchesAny(text, ['organization']) || matchesAny(text, ['organisations']) || matchesAny(text, ['club']) || matchesAny(text, ['jpcs']) || matchesAny(text, ['society']) || matchesAny(text, ['affiliat'])) {
                 return "Jeam is an active member of the Junior Philippine Computer Society (JPCS) - PCU Chapter, participating in campus IT workshops, technical seminars, and student technology initiatives.";
             }
 
             // 4. Education / PCU / CEU / Degree
-            if (text.includes('education') || text.includes('school') || text.includes('college') || text.includes('pcu') || text.includes('university') || text.includes('degree') || text.includes('bsit') || text.includes('ceu') || text.includes('stem')) {
+            if (matchesAny(text, ['education']) || matchesAny(text, ['school']) || matchesAny(text, ['college']) || matchesAny(text, ['pcu']) || matchesAny(text, ['university']) || matchesAny(text, ['degree']) || matchesAny(text, ['bsit']) || matchesAny(text, ['ceu']) || matchesAny(text, ['stem'])) {
                 return "Jeam's educational background: 1) BS in Information Technology (4th Year, 1st Sem) at Philippine Christian University (PCU, 2022-Present) covering Software Engineering, Network Security, Database Management, and Web Development; 2) Senior High School STEM Track at Centro Escolar University (CEU, 2017–2019).";
             }
 
             // 5. Resume Project Specific Query (Project #2 under Featured Works)
-            if (text.includes('resume project') || (text.includes('resume') && text.includes('project'))) {
+            if (matchesAny(text, ['resume project']) || (matchesAny(text, ['resume']) && matchesAny(text, ['project']))) {
                 return "The Resume Project is a featured work built with HTML and CSS (Responsive Design). It showcases a basic, web-designed online resume layout that is responsive and print-ready.";
             }
 
             // 6. Full CV / Resume Overview
-            if (text.includes('cv') || text.includes('resume') || text.includes('summary') || text.includes('profile')) {
+            if (matchesAny(text, ['cv']) || matchesAny(text, ['resume']) || matchesAny(text, ['summary']) || matchesAny(text, ['profile'])) {
                 return "Jeam's CV/Resume Summary:\n• Contact: Makati City | jeampauloropesa@gmail.com | 09277366468 | linkedin.com/in/Oropesapaul\n• Education: 4th-Year 1st-Sem BSIT at PCU (STEM at CEU)\n• Experience: ICT Intern at DELSAN & Work Immersion at MACEMCO\n• Organization: Member of JPCS - PCU Chapter\n• Certifications & Skills: Web Development Foundation (PCU), HTML, CSS, JS, Java, PHP, MySQL, XAMPP, Git.";
             }
 
             // 7. Skills & Tech Stack
-            if (text.includes('skill') || text.includes('stack') || text.includes('java') || text.includes('php') || text.includes('mysql') || text.includes('html') || text.includes('css') || text.includes('xampp') || text.includes('git')) {
+            if (matchesAny(text, ['skill']) || matchesAny(text, ['stack']) || matchesAny(text, ['java']) || matchesAny(text, ['php']) || matchesAny(text, ['mysql']) || matchesAny(text, ['html']) || matchesAny(text, ['css']) || matchesAny(text, ['xampp']) || matchesAny(text, ['git'])) {
                 return "Jeam's technical skills include HTML, CSS, JavaScript, Java (OOP), PHP, MySQL, XAMPP, and Git/GitHub. Soft skills include Problem Solving, Adaptability, Teamwork, Communication, and Time Management.";
             }
 
             // 8. Projects & Works General
-            if (text.includes('project') || text.includes('work') || text.includes('portfolio') || text.includes('calendar') || text.includes('quiz') || text.includes('enrollment')) {
+            if (matchesAny(text, ['project']) || matchesAny(text, ['work']) || matchesAny(text, ['portfolio']) || matchesAny(text, ['calendar']) || matchesAny(text, ['quiz']) || matchesAny(text, ['enrollment'])) {
                 return "Jeam's featured projects are: 1) Birth Day Calendar Project (HTML/CSS), 2) Resume Project (HTML/CSS web design), 3) PCU Enrollment System (PHP/XAMPP/MySQL), and 4) Interactive Quiz & Profile App (PHP/XAMPP).";
             }
 
             // 9. Contact Details
-            if (text.includes('contact') || text.includes('email') || text.includes('phone') || text.includes('reach') || text.includes('linkedin') || text.includes('makati') || text.includes('address') || text.includes('location')) {
+            if (matchesAny(text, ['contact']) || matchesAny(text, ['email']) || matchesAny(text, ['phone']) || matchesAny(text, ['reach']) || matchesAny(text, ['linkedin']) || matchesAny(text, ['makati']) || matchesAny(text, ['address']) || matchesAny(text, ['location'])) {
                 return "You can reach Jeam via email at jeampauloropesa@gmail.com, by phone at 09277366468, or via LinkedIn at linkedin.com/in/Oropesapaul. He is located in Makati City, Philippines.";
             }
 
             // 10. Greetings
-            if (text.includes('hi') || text.includes('hello') || text.includes('hey')) {
+            if (matchesAny(text, ['hi']) || matchesAny(text, ['hello']) || matchesAny(text, ['hey'])) {
                 return "Hello! I'm Jeam's AI portfolio assistant. Ask me anything about his CV details—including education, certifications, DELSAN ICT internship, MACEMCO immersion, JPCS organization, or portfolio projects!";
             }
 
             // 11. Overview / Who is Jeam
-            if (text.includes('who') || text.includes('about') || text.includes('story')) {
+            if (matchesAny(text, ['who']) || matchesAny(text, ['about']) || matchesAny(text, ['story'])) {
                 return "Jeam Paul S. Oropesa is a 4th-year 1st-semester Information Technology student at PCU. He is currently an ICT Intern at DELSAN, previously completed his Work Immersion at MACEMCO, and is an active member of JPCS.";
             }
 
